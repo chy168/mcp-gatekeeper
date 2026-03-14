@@ -1,4 +1,4 @@
-# mcp-keeper
+# mcp-gatekeeper
 
 Lightweight Go stdio proxy — sits between MCP client and server, filters `tools/list` responses via glob patterns (`--allow` allowlist, `--exclude` denylist).
 
@@ -10,12 +10,12 @@ bash -l -c "source ~/.gvm/scripts/gvm && gvm use go1.24 && go <cmd>"
 ```
 Or just use the Makefile (it handles this automatically).
 
-**GitHub**: `chy168` → module is `github.com/chy168/mcp-keeper`
+**GitHub**: `chy168` → module is `github.com/chy168/mcp-gatekeeper`
 
 ## Structure
 
 ```
-cmd/mcp-keeper/main.go      # CLI entry: --allow / --exclude flags
+cmd/mcp-gatekeeper/main.go      # CLI entry: --allow / --exclude flags
 internal/filter/filter.go   # JSON-RPC detection + glob filtering logic
 internal/proxy/proxy.go     # subprocess spawn + bidirectional stdio pipe
 scripts/integration_test.py # integration tests (uv run)
@@ -24,7 +24,7 @@ scripts/integration_test.py # integration tests (uv run)
 ## Common Commands
 
 ```sh
-make build                          # build → bin/mcp-keeper
+make build                          # build → bin/mcp-gatekeeper
 make test                           # go test ./...
 make cross                          # cross-compile linux/darwin/windows
 uv run scripts/integration_test.py # integration tests (requires uvx + npx)

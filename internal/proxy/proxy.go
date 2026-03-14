@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/chy168/mcp-keeper/internal/filter"
+	"github.com/chy168/mcp-gatekeeper/internal/filter"
 )
 
 // Run starts the subprocess and proxies stdio between client and subprocess.
@@ -18,18 +18,18 @@ func Run(command string, args, allows, excludes []string) int {
 
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "mcp-keeper: failed to create stdin pipe: %v\n", err)
+		fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to create stdin pipe: %v\n", err)
 		return 1
 	}
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "mcp-keeper: failed to create stdout pipe: %v\n", err)
+		fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to create stdout pipe: %v\n", err)
 		return 1
 	}
 
 	if err := cmd.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "mcp-keeper: failed to start subprocess: %v\n", err)
+		fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to start subprocess: %v\n", err)
 		return 1
 	}
 

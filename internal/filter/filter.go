@@ -68,38 +68,40 @@ func FilterToolsListResponse(line []byte, allows, excludes []string) ([]byte, er
 		return line, nil
 	}
 
-	var tools []Tool
-	if err := json.Unmarshal(toolsRaw, &tools); err != nil {
+	var rawTools []json.RawMessage
+	if err := json.Unmarshal(toolsRaw, &rawTools); err != nil {
 		return line, nil
 	}
 
 	// Apply allowlist
 	if len(allows) > 0 {
-		var kept []Tool
-		for _, t := range tools {
-			if matchesAny(t.Name, allows) {
-				kept = append(kept, t)
+		var kept []json.RawMessage
+		for _, raw := range rawTools {
+			var t Tool
+			if err := json.Unmarshal(raw, &t); err == nil && matchesAny(t.Name, allows) {
+				kept = append(kept, raw)
 			}
 		}
-		tools = kept
+		rawTools = kept
 	}
 
 	// Apply denylist
 	if len(excludes) > 0 {
-		var kept []Tool
-		for _, t := range tools {
-			if !matchesAny(t.Name, excludes) {
-				kept = append(kept, t)
+		var kept []json.RawMessage
+		for _, raw := range rawTools {
+			var t Tool
+			if err := json.Unmarshal(raw, &t); err == nil && !matchesAny(t.Name, excludes) {
+				kept = append(kept, raw)
 			}
 		}
-		tools = kept
+		rawTools = kept
 	}
 
-	if tools == nil {
-		tools = []Tool{}
+	if rawTools == nil {
+		rawTools = []json.RawMessage{}
 	}
 
-	filteredToolsJSON, err := json.Marshal(tools)
+	filteredToolsJSON, err := json.Marshal(rawTools)
 	if err != nil {
 		return line, nil
 	}

@@ -1,6 +1,6 @@
-BINARY  := mcp-keeper
-MODULE  := github.com/chy168/mcp-keeper
-CMD     := ./cmd/mcp-keeper
+BINARY  := mcp-gatekeeper
+MODULE  := github.com/chy168/mcp-gatekeeper
+CMD     := ./cmd/mcp-gatekeeper
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-s -w -X main.version=$(VERSION)"
