@@ -19,7 +19,7 @@ go install github.com/chy168/mcp-keeper/cmd/mcp-keeper@latest
 ## Usage
 
 ```
-mcp-keeper [--filter=<glob>]... [--exclude=<glob>]... <command> [args...]
+mcp-keeper [--allow=<glob>]... [--exclude=<glob>]... <command> [args...]
 ```
 
 Prefix your existing MCP server command with `mcp-keeper`:
@@ -32,23 +32,23 @@ uvx mcp-server-time
 mcp-keeper uvx mcp-server-time
 
 # Only expose tools matching get_*
-mcp-keeper --filter="get_*" uvx mcp-server-time
+mcp-keeper --allow="get_*" uvx mcp-server-time
 
 # Expose all tools except delete_*
 mcp-keeper --exclude="delete_*" uvx mcp-server-filesystem /tmp
 
 # Combine: keep *_file tools, but remove delete_file
-mcp-keeper --filter="*_file" --exclude="delete_*" uvx mcp-server-filesystem /tmp
+mcp-keeper --allow="*_file" --exclude="delete_*" uvx mcp-server-filesystem /tmp
 ```
 
 ## Flags
 
 | Flag | Description |
 |------|-------------|
-| `--filter=<glob>` | **Allowlist**: only keep tools whose name matches this glob. Can be specified multiple times (OR logic). |
+| `--allow=<glob>` | **Allowlist**: only keep tools whose name matches this glob. Can be specified multiple times (OR logic). |
 | `--exclude=<glob>` | **Denylist**: remove tools whose name matches this glob. Can be specified multiple times (OR logic). |
 
-When both are specified, `--filter` is applied first, then `--exclude`.
+When both are specified, `--allow` is applied first, then `--exclude`.
 
 Glob patterns use Go's [`path.Match`](https://pkg.go.dev/path#Match) syntax (`*`, `?`, `[abc]`).
 
@@ -60,7 +60,7 @@ Glob patterns use Go's [`path.Match`](https://pkg.go.dev/path#Match) syntax (`*`
   "mcpServers": {
     "time": {
       "command": "mcp-keeper",
-      "args": ["--filter=get_*", "uvx", "mcp-server-time"]
+      "args": ["--allow=get_*", "uvx", "mcp-server-time"]
     }
   }
 }

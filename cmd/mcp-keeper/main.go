@@ -17,13 +17,13 @@ func (f *multiFlag) Set(v string) error {
 }
 
 func main() {
-	var filters multiFlag
+	var allows multiFlag
 	var excludes multiFlag
 
-	flag.Var(&filters, "filter", "Allowlist glob pattern for tool names (may be specified multiple times)")
+	flag.Var(&allows, "allow", "Allowlist glob pattern for tool names (may be specified multiple times)")
 	flag.Var(&excludes, "exclude", "Denylist glob pattern for tool names (may be specified multiple times)")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: mcp-keeper [--filter=<glob>]... [--exclude=<glob>]... <command> [args...]\n\n")
+		fmt.Fprintf(os.Stderr, "Usage: mcp-keeper [--allow=<glob>]... [--exclude=<glob>]... <command> [args...]\n\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -34,5 +34,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	os.Exit(proxy.Run(args[0], args[1:], []string(filters), []string(excludes)))
+	os.Exit(proxy.Run(args[0], args[1:], []string(allows), []string(excludes)))
 }

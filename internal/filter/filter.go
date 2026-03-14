@@ -40,10 +40,10 @@ func matchesAny(name string, patterns []string) bool {
 }
 
 // FilterToolsListResponse applies allow/deny filtering to a tools/list response line.
-// If filters and excludes are both empty, the line is returned unchanged.
-// filters = allowlist (keep matching), excludes = denylist (remove matching).
-func FilterToolsListResponse(line []byte, filters, excludes []string) ([]byte, error) {
-	if len(filters) == 0 && len(excludes) == 0 {
+// If allows and excludes are both empty, the line is returned unchanged.
+// allows = allowlist (keep matching), excludes = denylist (remove matching).
+func FilterToolsListResponse(line []byte, allows, excludes []string) ([]byte, error) {
+	if len(allows) == 0 && len(excludes) == 0 {
 		return line, nil
 	}
 
@@ -74,10 +74,10 @@ func FilterToolsListResponse(line []byte, filters, excludes []string) ([]byte, e
 	}
 
 	// Apply allowlist
-	if len(filters) > 0 {
+	if len(allows) > 0 {
 		var kept []Tool
 		for _, t := range tools {
-			if matchesAny(t.Name, filters) {
+			if matchesAny(t.Name, allows) {
 				kept = append(kept, t)
 			}
 		}

@@ -11,8 +11,8 @@ import (
 )
 
 // Run starts the subprocess and proxies stdio between client and subprocess.
-// filters is the allowlist, excludes is the denylist.
-func Run(command string, args, filters, excludes []string) int {
+// allows is the allowlist, excludes is the denylist.
+func Run(command string, args, allows, excludes []string) int {
 	cmd := exec.Command(command, args...)
 	cmd.Stderr = os.Stderr
 
@@ -50,7 +50,7 @@ func Run(command string, args, filters, excludes []string) int {
 			line := scanner.Bytes()
 			var out []byte
 			if filter.IsToolsListResponse(line) {
-				out, _ = filter.FilterToolsListResponse(line, filters, excludes)
+				out, _ = filter.FilterToolsListResponse(line, allows, excludes)
 			} else {
 				out = line
 			}

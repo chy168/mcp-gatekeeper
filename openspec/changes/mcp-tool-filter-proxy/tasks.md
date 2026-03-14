@@ -46,5 +46,6 @@
 
 - [x] 7.1 設定 `goreleaser`（或手動 Makefile），支援 linux/darwin/windows 三平台交叉編譯
 - [x] 7.2 建立 GitHub Actions CI（build + test）
-- [x] 7.3 建立 Homebrew tap formula
+- [x] 7.3 建立 Homebrew tap formula（`homebrew/mcp-keeper.rb`，SHA256 已填入 v0.0.1）
 - [x] 7.4 撰寫 README（安裝方式、使用範例、`--filter` / `--exclude` 說明）
+- [ ] 7.5 建立 `chy168/homebrew-tap` GitHub repo（public），將 `homebrew/mcp-keeper.rb` 放到 `Formula/` 目錄並 push，讓使用者可以 `brew install chy168/tap/mcp-keeper`

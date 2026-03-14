@@ -98,7 +98,7 @@ func TestAllowlistFilter(t *testing.T) {
 	out, _ := FilterToolsListResponse(line, []string{"get_*"}, nil)
 	names := toolNames(out)
 	if len(names) != 1 || names[0] != "get_current_time" {
-		t.Errorf("single filter: got %v", names)
+		t.Errorf("single allow: got %v", names)
 	}
 
 	// multiple patterns (OR)
@@ -106,7 +106,7 @@ func TestAllowlistFilter(t *testing.T) {
 	out, _ = FilterToolsListResponse(line, []string{"get_*", "convert_*"}, nil)
 	names = toolNames(out)
 	if len(names) != 2 {
-		t.Errorf("multi filter: expected 2, got %v", names)
+		t.Errorf("multi allow: expected 2, got %v", names)
 	}
 
 	// no match → empty
