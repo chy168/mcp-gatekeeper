@@ -250,6 +250,32 @@ def test_call_memory_after_filter(keeper_args, server_cmd, timeout):
     ok = len(content) > 0
     return ok, f"read_graph callable after --allow=read_*, got {len(content)} content item(s)"
 
+def test_env_passthrough(keeper_args, server_cmd, timeout):
+    """--env=KEY=value should be accepted; proxy starts and responds normally."""
+    tools = list_tools(keeper_args, server_cmd, timeout)
+    if tools is None:
+        return False, "No tools/list response"
+    ok = len(tools) > 0
+    return ok, f"proxy started normally with --env flag, got {len(tools)} tool(s)"
+
+def test_secret_ref_without_source_exits_nonzero():
+    """
+    --env=TOKEN={$secret.x} without --secret-source should exit with code 1
+    and print an error to stderr before spawning any subprocess.
+    """
+    result = subprocess.run(
+        [BINARY, "--env=TOKEN={$secret.x}", "uvx", "mcp-server-time"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=10,
+    )
+    ok = result.returncode == 1
+    stderr_text = result.stderr.decode(errors="replace").strip()
+    has_msg = "secret" in stderr_text.lower() or "--secret-source" in stderr_text
+    detail = f"exit={result.returncode}, stderr={stderr_text!r}"
+    return ok and has_msg, detail
+
 
 # ── Test cases ────────────────────────────────────────────────────────────────
 def main():
@@ -311,6 +337,29 @@ def main():
         server_cmd=["npx", "-y", "@modelcontextprotocol/server-memory"],
         fn=test_call_memory_after_filter, timeout=60,
     ))
+
+    # ── env injection + fail-fast tests ───────────────────────────────────────
+    results.append(run_test(
+        "6.10 --env=KEY=value — proxy starts normally (no secret ref)",
+        keeper_args=["--env=TEST_KEY=hello"],
+        server_cmd=["uvx", "mcp-server-time"],
+        fn=test_env_passthrough,
+    ))
+
+    print(f"{'─' * 60}")
+    print("  6.11 --env with {$secret.x} and no --secret-source exits with code 1")
+    print(f"  $ {BINARY} --env=TOKEN={{$secret.x}} uvx mcp-server-time")
+    if not shutil.which(BINARY):
+        print(f"  {SKIP}: binary not found at {BINARY}")
+        results.append(None)
+    else:
+        try:
+            ok, detail = test_secret_ref_without_source_exits_nonzero()
+            print(f"  {PASS if ok else FAIL}: {detail}")
+            results.append(ok)
+        except Exception as exc:
+            print(f"  {FAIL}: {exc}")
+            results.append(False)
 
     # ── Summary ───────────────────────────────────────────────────────────────
     print(f"\n{'═' * 60}")

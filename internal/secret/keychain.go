@@ -7,6 +7,10 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
+// keychainService is the service name used for all mcp-gatekeeper secrets in the OS keychain.
+// Platform support: macOS Keychain, Windows Credential Manager.
+// Linux: requires a running Secret Service daemon (e.g. gnome-keyring or KWallet via D-Bus).
+// Not suitable for headless/CI environments on Linux.
 const keychainService = "mcp-gatekeeper"
 
 type keychainBackend struct{}

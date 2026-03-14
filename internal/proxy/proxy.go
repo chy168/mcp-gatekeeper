@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/chy168/mcp-gatekeeper/internal/filter"
@@ -71,51 +70,13 @@ func Run(command string, args, allows, excludes, envInjections, fileInjections [
 	}
 
 	// Handle fileInjections
-	for _, inj := range fileInjections {
-		idx := strings.Index(inj, "=")
-		if idx < 0 {
-			fmt.Fprintf(os.Stderr, "mcp-gatekeeper: invalid --file injection (missing '='): %q\n", inj)
-			return 1
-		}
-		lhs := inj[:idx]
-		rhs := inj[idx+1:]
-
-		// Substitute secret refs in the rhs (value)
-		if resolved != nil {
-			rhs = secret.Substitute(rhs, resolved)
-		}
-
-		if strings.HasPrefix(lhs, "/") || strings.HasPrefix(lhs, "~") {
-			// Fixed path — write secret directly to lhs
-			if err := os.WriteFile(lhs, []byte(rhs), 0600); err != nil {
-				fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to write secret to %q: %v\n", lhs, err)
-				return 1
-			}
-		} else {
-			// Temp file — create, write secret, add VAR=path to env
-			f, err := os.CreateTemp("", "mcp-secret-*")
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to create temp file: %v\n", err)
-				return 1
-			}
-			tmpPath := f.Name()
-			tmpFiles = append(tmpFiles, tmpPath)
-
-			if err := f.Chmod(0600); err != nil {
-				f.Close()
-				fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to chmod temp file: %v\n", err)
-				return 1
-			}
-			if _, err := f.WriteString(rhs); err != nil {
-				f.Close()
-				fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to write to temp file: %v\n", err)
-				return 1
-			}
-			f.Close()
-
-			resolvedEnvs = append(resolvedEnvs, lhs+"="+tmpPath)
-		}
+	fileEnvs, fileTmps, err := applyFileInjections(fileInjections, resolved)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mcp-gatekeeper: %v\n", err)
+		return 1
 	}
+	tmpFiles = append(tmpFiles, fileTmps...)
+	resolvedEnvs = append(resolvedEnvs, fileEnvs...)
 
 	cmd := exec.Command(command, args...)
 	cmd.Stderr = os.Stderr
