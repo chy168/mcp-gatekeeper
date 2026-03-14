@@ -54,6 +54,8 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
@@ -70,53 +72,13 @@ jobs:
           SHA_LINUX_ARM64=$(curl -sL "${BASE_URL}/mcp-gatekeeper-linux-arm64"   | sha256sum | awk '{print $1}')
           SHA_LINUX_AMD64=$(curl -sL "${BASE_URL}/mcp-gatekeeper-linux-amd64"   | sha256sum | awk '{print $1}')
 
-          cat > mcp-gatekeeper.rb <<RUBY
-class McpGatekeeper < Formula
-  desc "Lightweight stdio proxy for filtering MCP server tool lists"
-  homepage "https://github.com/chy168/mcp-gatekeeper"
-  version "${VERSION_NO_V}"
-
-  on_macos do
-    if Hardware::CPU.arm?
-      url "${BASE_URL}/mcp-gatekeeper-darwin-arm64"
-      sha256 "${SHA_DARWIN_ARM64}"
-
-      def install
-        bin.install "mcp-gatekeeper-darwin-arm64" => "mcp-gatekeeper"
-      end
-    else
-      url "${BASE_URL}/mcp-gatekeeper-darwin-amd64"
-      sha256 "${SHA_DARWIN_AMD64}"
-
-      def install
-        bin.install "mcp-gatekeeper-darwin-amd64" => "mcp-gatekeeper"
-      end
-    end
-  end
-
-  on_linux do
-    if Hardware::CPU.arm?
-      url "${BASE_URL}/mcp-gatekeeper-linux-arm64"
-      sha256 "${SHA_LINUX_ARM64}"
-
-      def install
-        bin.install "mcp-gatekeeper-linux-arm64" => "mcp-gatekeeper"
-      end
-    else
-      url "${BASE_URL}/mcp-gatekeeper-linux-amd64"
-      sha256 "${SHA_LINUX_AMD64}"
-
-      def install
-        bin.install "mcp-gatekeeper-linux-amd64" => "mcp-gatekeeper"
-      end
-    end
-  end
-
-  test do
-    assert_match "Usage:", shell_output("#{bin}/mcp-gatekeeper 2>&1", 1)
-  end
-end
-RUBY
+          sed \
+            -e "s/__VERSION__/${VERSION_NO_V}/g" \
+            -e "s/__SHA_DARWIN_ARM64__/${SHA_DARWIN_ARM64}/g" \
+            -e "s/__SHA_DARWIN_AMD64__/${SHA_DARWIN_AMD64}/g" \
+            -e "s/__SHA_LINUX_ARM64__/${SHA_LINUX_ARM64}/g" \
+            -e "s/__SHA_LINUX_AMD64__/${SHA_LINUX_AMD64}/g" \
+            homebrew/mcp-gatekeeper.rb > mcp-gatekeeper.rb
 
           git clone "git@github.com:chy168/homebrew-tap.git" tap
           mkdir -p tap/Formula

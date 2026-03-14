@@ -1,19 +1,19 @@
 class McpGatekeeper < Formula
   desc "Lightweight stdio proxy for filtering MCP server tool lists"
   homepage "https://github.com/chy168/mcp-gatekeeper"
-  version "0.0.1"
+  version "__VERSION__"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/chy168/mcp-gatekeeper/releases/download/v#{version}/mcp-gatekeeper-darwin-arm64"
-      sha256 "b14e44aa57acdc4c39261ed8e44bed460ad4220e427593c0cd2169e0b7fdb504"
+      url "https://github.com/chy168/mcp-gatekeeper/releases/download/v__VERSION__/mcp-gatekeeper-darwin-arm64"
+      sha256 "__SHA_DARWIN_ARM64__"
 
       def install
         bin.install "mcp-gatekeeper-darwin-arm64" => "mcp-gatekeeper"
       end
     else
-      url "https://github.com/chy168/mcp-gatekeeper/releases/download/v#{version}/mcp-gatekeeper-darwin-amd64"
-      sha256 "01a3f138f8f4e2ad1e662c38d9fbc49f52c715abfa693fa0ab36f1b709e91ae9"
+      url "https://github.com/chy168/mcp-gatekeeper/releases/download/v__VERSION__/mcp-gatekeeper-darwin-amd64"
+      sha256 "__SHA_DARWIN_AMD64__"
 
       def install
         bin.install "mcp-gatekeeper-darwin-amd64" => "mcp-gatekeeper"
@@ -23,15 +23,15 @@ class McpGatekeeper < Formula
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/chy168/mcp-gatekeeper/releases/download/v#{version}/mcp-gatekeeper-linux-arm64"
-      sha256 "e944a2adb234df121518a11dc45f2b7bf8d41fa1e077210eaa28d84fc683d7fe"
+      url "https://github.com/chy168/mcp-gatekeeper/releases/download/v__VERSION__/mcp-gatekeeper-linux-arm64"
+      sha256 "__SHA_LINUX_ARM64__"
 
       def install
         bin.install "mcp-gatekeeper-linux-arm64" => "mcp-gatekeeper"
       end
     else
-      url "https://github.com/chy168/mcp-gatekeeper/releases/download/v#{version}/mcp-gatekeeper-linux-amd64"
-      sha256 "bdebdf91877db2bccb36b9ce6de20b567b0203e4f4257beed3d1688571265d6d"
+      url "https://github.com/chy168/mcp-gatekeeper/releases/download/v__VERSION__/mcp-gatekeeper-linux-amd64"
+      sha256 "__SHA_LINUX_AMD64__"
 
       def install
         bin.install "mcp-gatekeeper-linux-amd64" => "mcp-gatekeeper"
