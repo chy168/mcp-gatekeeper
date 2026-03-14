@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/chy168/mcp-gatekeeper/internal/filter"
+	"github.com/chy168/mcp-gatekeeper/internal/secret"
 )
 
 type toolEntry struct {
@@ -27,9 +29,87 @@ type jsonRPCMsg struct {
 // ListTools starts the subprocess, performs the MCP handshake, sends tools/list,
 // and prints tool names and descriptions to stdout.
 // If allows/excludes are provided, filtering is applied before printing.
-func ListTools(command string, args, allows, excludes []string) int {
+func ListTools(command string, args, allows, excludes, envInjections, fileInjections []string, secretSource string) int {
+	// Collect all {$secret.*} refs from args, envInjections, and fileInjections
+	allStrings := append(append(append([]string{}, args...), envInjections...), fileInjections...)
+	allRefs := secret.ExtractRefsFromSlice(allStrings)
+
+	var resolved map[string]string
+	if len(allRefs) > 0 {
+		if secretSource == "" {
+			fmt.Fprintf(os.Stderr, "mcp-gatekeeper: secret references found but --secret-source is not set\n")
+			return 1
+		}
+		var err error
+		resolved, err = secret.ResolveAll(secretSource, allRefs)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to resolve secrets: %v\n", err)
+			return 1
+		}
+	}
+
+	// Substitute refs in args
+	if resolved != nil {
+		args = secret.SubstituteSlice(args, resolved)
+	}
+
+	// Build extra env vars from envInjections
+	var resolvedEnvs []string
+	for _, inj := range envInjections {
+		substituted := inj
+		if resolved != nil {
+			substituted = secret.Substitute(inj, resolved)
+		}
+		resolvedEnvs = append(resolvedEnvs, substituted)
+	}
+
+	// Handle fileInjections (no temp file cleanup needed for list mode)
+	for _, inj := range fileInjections {
+		idx := strings.Index(inj, "=")
+		if idx < 0 {
+			fmt.Fprintf(os.Stderr, "mcp-gatekeeper: invalid --file injection (missing '='): %q\n", inj)
+			return 1
+		}
+		lhs := inj[:idx]
+		rhs := inj[idx+1:]
+
+		if resolved != nil {
+			rhs = secret.Substitute(rhs, resolved)
+		}
+
+		if strings.HasPrefix(lhs, "/") || strings.HasPrefix(lhs, "~") {
+			if err := os.WriteFile(lhs, []byte(rhs), 0600); err != nil {
+				fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to write secret to %q: %v\n", lhs, err)
+				return 1
+			}
+		} else {
+			f, err := os.CreateTemp("", "mcp-secret-*")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to create temp file: %v\n", err)
+				return 1
+			}
+			tmpPath := f.Name()
+			if err := f.Chmod(0600); err != nil {
+				f.Close()
+				fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to chmod temp file: %v\n", err)
+				return 1
+			}
+			if _, err := f.WriteString(rhs); err != nil {
+				f.Close()
+				fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to write to temp file: %v\n", err)
+				return 1
+			}
+			f.Close()
+			resolvedEnvs = append(resolvedEnvs, lhs+"="+tmpPath)
+		}
+	}
+
 	cmd := exec.Command(command, args...)
 	cmd.Stderr = os.Stderr
+
+	if len(resolvedEnvs) > 0 {
+		cmd.Env = append(os.Environ(), resolvedEnvs...)
+	}
 
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
