@@ -19,7 +19,9 @@ go install github.com/chy168/mcp-gatekeeper/cmd/mcp-gatekeeper@latest
 ## Usage
 
 ```
-mcp-gatekeeper [--allow=<glob>]... [--exclude=<glob>]... [--list-tools | --list-all-tools] <command> [args...]
+mcp-gatekeeper [--allow=<glob>]... [--exclude=<glob>]... [--list-tools | --list-all-tools] \
+               [--secret-source=<backend>] [--env=KEY={$secret.name}]... [--file=VAR={$secret.name}]... \
+               <command> [args...]
 ```
 
 Prefix your existing MCP server command with `mcp-gatekeeper`:
@@ -57,10 +59,57 @@ mcp-gatekeeper flags must appear **before** the server command. Any flags after 
 | `--exclude=<glob>` | **Denylist**: remove tools whose name matches this glob. Can be specified multiple times (OR logic). |
 | `--list-all-tools` | Print all available tool names and descriptions (ignores `--allow`/`--exclude`), then exit. Useful for discovering tool names. |
 | `--list-tools` | Print tool names and descriptions after applying `--allow`/`--exclude` filters, then exit. Useful for verifying your filter setup. |
+| `--secret-source=<backend>` | Secret backend to use: `gcp`, `aws`, or `keychain`. Required when any `{$secret.*}` reference is used. |
+| `--env=KEY={$secret.name}` | Inject a secret as an env var into the subprocess. Can be specified multiple times. |
+| `--file=VAR={$secret.name}` | Write secret to a temp file (deleted on exit), inject its path as env var `VAR`. |
+| `--file=/path/to/file={$secret.name}` | Write secret to a fixed path. No env var injected. |
 
 When both `--allow` and `--exclude` are specified, `--allow` is applied first, then `--exclude`.
 
 Glob patterns use Go's [`path.Match`](https://pkg.go.dev/path#Match) syntax (`*`, `?`, `[abc]`).
+
+## Secret Injection
+
+`{$secret.name}` placeholders are resolved at startup from the configured backend and substituted into `--env`, `--file`, and subprocess args before the server is launched.
+
+### Basic usage
+
+```sh
+# Inject a secret as env var (from GCP Secret Manager)
+mcp-gatekeeper --secret-source=gcp --env=API_TOKEN={$secret.my_api_token} uvx mcp-server-foo
+
+# Inject into subprocess args
+mcp-gatekeeper --secret-source=aws --allow="query_*" uvx mcp-server-foo --token={$secret.my_token}
+
+# Write credential file to temp path (e.g. for Google ADC)
+mcp-gatekeeper --secret-source=gcp \
+  --file=GOOGLE_APPLICATION_CREDENTIALS={$secret.gcp_sa_key} \
+  uvx mcp-server-gcp
+
+# Write to a fixed path
+mcp-gatekeeper --secret-source=keychain \
+  --file=/tmp/creds.json={$secret.my_creds} \
+  uvx mcp-server-foo
+```
+
+### Backend setup
+
+**`--secret-source=gcp`** (GCP Secret Manager)
+- Requires `GOOGLE_CLOUD_PROJECT` env var
+- Authentication via Application Default Credentials (ADC): run `gcloud auth application-default login`
+
+**`--secret-source=aws`** (AWS Secrets Manager)
+- Requires `AWS_DEFAULT_REGION` or `AWS_REGION` env var
+- Authentication via standard AWS credential chain (`~/.aws/credentials`, IAM role, env vars, etc.)
+
+**`--secret-source=keychain`** (OS Keychain)
+- macOS: Keychain, Linux: Secret Service (requires D-Bus — desktop only), Windows: Credential Manager
+- Service name is fixed to `mcp-gatekeeper`; account name is the secret name
+- Add a secret on macOS: `security add-generic-password -s mcp-gatekeeper -a my_token -w "secret-value"`
+
+### Security note
+
+> **Note**: Using `{$secret.name}` inside subprocess args (e.g. `--token={$secret.x}`) will expose the secret value in process listings (`ps`). Prefer `--env` or `--file` for sensitive values.
 
 ## MCP Client Config Example
 
@@ -71,6 +120,24 @@ Glob patterns use Go's [`path.Match`](https://pkg.go.dev/path#Match) syntax (`*`
     "time": {
       "command": "mcp-gatekeeper",
       "args": ["--allow=get_*", "uvx", "mcp-server-time"]
+    }
+  }
+}
+```
+
+### With secret injection
+
+```json
+{
+  "mcpServers": {
+    "jira": {
+      "command": "mcp-gatekeeper",
+      "args": [
+        "--secret-source=gcp",
+        "--env=JIRA_API_TOKEN={$secret.jira_api_token}",
+        "--allow=get_*",
+        "uvx", "mcp-server-jira"
+      ]
     }
   }
 }
