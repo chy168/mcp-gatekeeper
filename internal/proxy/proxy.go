@@ -15,8 +15,8 @@ import (
 
 // Run starts the subprocess and proxies stdio between client and subprocess.
 // allows is the allowlist, excludes is the denylist.
-// secretSource, envInjections, and fileInjections enable secret resolution and injection.
-func Run(command string, args, allows, excludes, envInjections, fileInjections []string, secretSource string) int {
+// secretSource, secretSourceName, envInjections, and fileInjections enable secret resolution and injection.
+func Run(command string, args, allows, excludes, envInjections, fileInjections []string, secretSource, secretSourceName string) int {
 	// Collect all {$secret.*} refs from args, envInjections, and fileInjections
 	allStrings := append(append(append([]string{}, args...), envInjections...), fileInjections...)
 	allRefs := secret.ExtractRefsFromSlice(allStrings)
@@ -28,7 +28,7 @@ func Run(command string, args, allows, excludes, envInjections, fileInjections [
 			return 1
 		}
 		var err error
-		resolved, err = secret.ResolveAll(secretSource, allRefs)
+		resolved, err = secret.ResolveAll(secretSource, secretSourceName, allRefs)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to resolve secrets: %v\n", err)
 			return 1

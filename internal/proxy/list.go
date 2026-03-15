@@ -28,7 +28,7 @@ type jsonRPCMsg struct {
 // ListTools starts the subprocess, performs the MCP handshake, sends tools/list,
 // and prints tool names and descriptions to stdout.
 // If allows/excludes are provided, filtering is applied before printing.
-func ListTools(command string, args, allows, excludes, envInjections, fileInjections []string, secretSource string) int {
+func ListTools(command string, args, allows, excludes, envInjections, fileInjections []string, secretSource, secretSourceName string) int {
 	// Collect all {$secret.*} refs from args, envInjections, and fileInjections
 	allStrings := append(append(append([]string{}, args...), envInjections...), fileInjections...)
 	allRefs := secret.ExtractRefsFromSlice(allStrings)
@@ -40,7 +40,7 @@ func ListTools(command string, args, allows, excludes, envInjections, fileInject
 			return 1
 		}
 		var err error
-		resolved, err = secret.ResolveAll(secretSource, allRefs)
+		resolved, err = secret.ResolveAll(secretSource, secretSourceName, allRefs)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to resolve secrets: %v\n", err)
 			return 1

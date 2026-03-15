@@ -1,19 +1,4 @@
-### Requirement: 指定 secret backend
-mcp-gatekeeper SHALL 接受 `--secret-source=<backend>` flag，支援值為 `gcp`、`aws`、`keychain`。每次執行只能指定一個 backend。
-
-#### Scenario: 指定有效 backend
-- **WHEN** 使用者執行 `mcp-gatekeeper --secret-source=gcp ...`
-- **THEN** mcp-gatekeeper SHALL 使用 GCP Secret Manager 作為 secret 來源
-
-#### Scenario: 指定無效 backend
-- **WHEN** 使用者指定不支援的 backend（如 `--secret-source=vault`）
-- **THEN** mcp-gatekeeper SHALL 輸出錯誤訊息並以非零退出碼結束，不啟動子行程
-
-#### Scenario: 有 secret 引用但未指定 backend
-- **WHEN** 任何 flag 中含有 `{$secret.*}` 但未指定 `--secret-source`
-- **THEN** mcp-gatekeeper SHALL 輸出錯誤訊息並以非零退出碼結束，不啟動子行程
-
----
+## ADDED Requirements
 
 ### Requirement: 指定 secret bundle 名稱
 mcp-gatekeeper SHALL 接受 `--secret-source-name=<name>` flag，指定從 backend 取得的 bundle entry 名稱。若未指定，SHALL 使用 default 值 `mcp-gatekeeper`。
@@ -27,6 +12,8 @@ mcp-gatekeeper SHALL 接受 `--secret-source-name=<name>` flag，指定從 backe
 - **THEN** mcp-gatekeeper SHALL 使用 `mcp-gatekeeper` 作為 bundle 名稱
 
 ---
+
+## MODIFIED Requirements
 
 ### Requirement: 從 GCP Secret Manager 取得 secret
 當 `--secret-source=gcp` 時，mcp-gatekeeper SHALL 從 GCP Secret Manager 取得名為 `--secret-source-name`（default: `mcp-gatekeeper`）的 secret，project 從環境變數 `GOOGLE_CLOUD_PROJECT` 讀取，永遠取 `latest` 版本，認證使用 Application Default Credentials（ADC）。取得的內容作為 YAML bundle 解析，各 `{$secret.key}` 從 bundle 中 lookup。
@@ -72,16 +59,3 @@ mcp-gatekeeper SHALL 接受 `--secret-source-name=<name>` flag，指定從 backe
 #### Scenario: bundle 不存在於 Keychain
 - **WHEN** OS Keychain 中找不到對應的 bundle 項目
 - **THEN** mcp-gatekeeper SHALL 輸出錯誤訊息並以非零退出碼結束，不啟動子行程
-
----
-
-### Requirement: Fail fast — 任何 secret 解析失敗即中止
-mcp-gatekeeper SHALL 在啟動子行程之前解析所有 `{$secret.*}` 引用。任何一個解析失敗，SHALL 輸出錯誤訊息至 stderr 並以非零退出碼結束，不進行部分注入。
-
-#### Scenario: 所有 secret 解析成功
-- **WHEN** 所有 `{$secret.*}` 引用均成功取得值
-- **THEN** mcp-gatekeeper SHALL 繼續執行 secret 注入並啟動子行程
-
-#### Scenario: 部分 secret 解析失敗
-- **WHEN** 有任意一個 `{$secret.*}` 解析失敗
-- **THEN** mcp-gatekeeper SHALL 輸出錯誤訊息並以非零退出碼結束，不啟動子行程，不進行任何部分注入

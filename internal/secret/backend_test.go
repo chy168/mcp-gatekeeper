@@ -18,39 +18,52 @@ func (m *mockBackend) Get(_ context.Context, name string) (string, error) {
 	return v, nil
 }
 
-func TestResolveAllWithBackend(t *testing.T) {
+func TestResolveAllBundle(t *testing.T) {
+	bundleYAML := "db_password: supersecret\napi_key: key123\n"
 	mock := &mockBackend{
 		values: map[string]string{
-			"db-password": "supersecret",
-			"api-key":     "key123",
+			"mcp-gatekeeper": bundleYAML,
 		},
 	}
 
-	result, err := resolveAllWithBackend(mock, []string{"db-password", "api-key"})
+	result, err := resolveAllWithBackend(mock, "mcp-gatekeeper", []string{"db_password", "api_key"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result["db-password"] != "supersecret" {
-		t.Errorf("got %q, want %q", result["db-password"], "supersecret")
+	if result["db_password"] != "supersecret" {
+		t.Errorf("got %q, want %q", result["db_password"], "supersecret")
 	}
-	if result["api-key"] != "key123" {
-		t.Errorf("got %q, want %q", result["api-key"], "key123")
+	if result["api_key"] != "key123" {
+		t.Errorf("got %q, want %q", result["api_key"], "key123")
 	}
 }
 
-func TestResolveAllWithBackend_MissingSecret(t *testing.T) {
-	mock := &mockBackend{values: map[string]string{}}
+func TestResolveAllBundle_MissingKey(t *testing.T) {
+	mock := &mockBackend{
+		values: map[string]string{
+			"mcp-gatekeeper": "other_key: value\n",
+		},
+	}
 
-	_, err := resolveAllWithBackend(mock, []string{"missing"})
+	_, err := resolveAllWithBackend(mock, "mcp-gatekeeper", []string{"missing"})
 	if err == nil {
-		t.Fatal("expected error for missing secret, got nil")
+		t.Fatal("expected error for missing key, got nil")
 	}
 }
 
-func TestResolveAllWithBackend_Empty(t *testing.T) {
+func TestResolveAllBundle_BundleNotFound(t *testing.T) {
 	mock := &mockBackend{values: map[string]string{}}
 
-	result, err := resolveAllWithBackend(mock, []string{})
+	_, err := resolveAllWithBackend(mock, "mcp-gatekeeper", []string{"any_key"})
+	if err == nil {
+		t.Fatal("expected error when bundle not found")
+	}
+}
+
+func TestResolveAllBundle_NoRefs(t *testing.T) {
+	mock := &mockBackend{values: map[string]string{}}
+
+	result, err := resolveAllWithBackend(mock, "mcp-gatekeeper", []string{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

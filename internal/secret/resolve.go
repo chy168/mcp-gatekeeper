@@ -23,13 +23,26 @@ func ExtractRefs(s string) []string {
 	return result
 }
 
-// resolveAllWithBackend fetches all named secrets using the provided backend.
-// Returns a map of name → resolved value. Fails fast on any error.
-func resolveAllWithBackend(backend Backend, names []string) (map[string]string, error) {
+// resolveAllWithBackend fetches the YAML bundle from backend and looks up names.
+func resolveAllWithBackend(backend Backend, bundleName string, names []string) (map[string]string, error) {
+	if len(names) == 0 {
+		return map[string]string{}, nil
+	}
+
 	ctx := context.Background()
+	content, err := backend.Get(ctx, bundleName)
+	if err != nil {
+		return nil, err
+	}
+
+	bundle, err := ParseBundle(bundleName, content)
+	if err != nil {
+		return nil, err
+	}
+
 	out := make(map[string]string, len(names))
 	for _, name := range names {
-		val, err := backend.Get(ctx, name)
+		val, err := LookupBundle(bundle, name, bundleName)
 		if err != nil {
 			return nil, err
 		}
@@ -38,14 +51,15 @@ func resolveAllWithBackend(backend Backend, names []string) (map[string]string, 
 	return out, nil
 }
 
-// ResolveAll fetches all named secrets from the given source backend.
-// Returns a map of name → resolved value. Fails fast on any error.
-func ResolveAll(source string, names []string) (map[string]string, error) {
+// ResolveAll fetches the YAML bundle named bundleName from the given source
+// backend, parses it, and returns a map of the requested keys → values.
+// Fails fast on any error (backend fetch, YAML parse, missing key).
+func ResolveAll(source, bundleName string, names []string) (map[string]string, error) {
 	backend, err := NewBackend(source)
 	if err != nil {
 		return nil, err
 	}
-	return resolveAllWithBackend(backend, names)
+	return resolveAllWithBackend(backend, bundleName, names)
 }
 
 // Substitute replaces all {$secret.name} occurrences in s using the resolved map.
