@@ -112,19 +112,31 @@ GOOGLE_CLOUD_PROJECT=my-gcp-project \
 > **Note**: Always quote `{$secret.*}` placeholders with single quotes in the shell to prevent `$secret` from being expanded before mcp-gatekeeper sees it.
 
 ### Backend setup
-
-**`--secret-source=gcp`** (GCP Secret Manager)
+#### GCP Secret Manager
+**`--secret-source=gcp`**
 - Requires `GOOGLE_CLOUD_PROJECT` env var
 - Authentication via Application Default Credentials (ADC): run `gcloud auth application-default login`
 
-**`--secret-source=aws`** (AWS Secrets Manager)
+#### AWS Secrets Manager
+**`--secret-source=aws`**
 - Requires `AWS_DEFAULT_REGION` or `AWS_REGION` env var
 - Authentication via standard AWS credential chain (`~/.aws/credentials`, IAM role, env vars, etc.)
 
-**`--secret-source=keychain`** (OS Keychain)
+#### macOS Keychain
+**`--secret-source=keychain`**
 - macOS: Keychain, Linux: Secret Service (requires D-Bus — desktop only), Windows: Credential Manager
 - Service name is fixed to `mcp-gatekeeper`; account name is the secret name
-- Add a secret on macOS: `security add-generic-password -s mcp-gatekeeper -a my_token -w "secret-value"`
+- Add a secret on macOS:
+  ```
+  # secret value
+  security add-generic-password -s mcp-gatekeeper -a my_token -w "secret-value"
+
+  # credential file
+  security add-generic-password \
+    -s mcp-gatekeeper \
+    -a my_creds_file \
+    -w "$(cat /path/to/credentials.json)"
+  ```
 
 ### Security note
 
