@@ -92,6 +92,25 @@ mcp-gatekeeper --secret-source=keychain \
   uvx mcp-server-foo
 ```
 
+### Verify your setup (GCP example)
+
+```sh
+# 1. Create a test secret
+echo -n "hello-from-gcp" | gcloud secrets create my-test-secret \
+  --project=my-gcp-project \
+  --data-file=-
+
+# 2. Verify mcp-gatekeeper can fetch and inject it
+GOOGLE_CLOUD_PROJECT=my-gcp-project \
+  mcp-gatekeeper --secret-source=gcp \
+  --env='MY_SECRET={$secret.my-test-secret}' \
+  sh -c 'echo "SECRET=$MY_SECRET"'
+
+# Expected output: SECRET=hello-from-gcp
+```
+
+> **Note**: Always quote `{$secret.*}` placeholders with single quotes in the shell to prevent `$secret` from being expanded before mcp-gatekeeper sees it.
+
 ### Backend setup
 
 **`--secret-source=gcp`** (GCP Secret Manager)

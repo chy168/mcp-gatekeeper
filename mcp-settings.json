@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "mcp-atlassian": {
+      "command": "mcp-gatekeeper",
+      "args": [
+        "--secret-source=keychain",
+        "--env=CONFLUENCE_API_TOKEN={$secret.confluence_api_token}",
+        "--env=JIRA_API_TOKEN={$secret.jira_api_token}",
+        "podman",
+        "run",
+        "--rm",
+        "-i",
+        "-e", "CONFLUENCE_URL=https://gamania-group.atlassian.net/wiki",
+        "-e", "CONFLUENCE_USERNAME=zzchen@gamania.com",
+        "-e", "CONFLUENCE_API_TOKEN",
+        "-e", "JIRA_URL=https://gamania-group.atlassian.net/",
+        "-e", "JIRA_USERNAME=zzchen@gamania.com",
+        "-e", "JIRA_API_TOKEN",
+        "ghcr.io/sooperset/mcp-atlassian:latest"
+      ]
+    }
+  }
+}

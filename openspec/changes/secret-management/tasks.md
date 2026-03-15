@@ -40,8 +40,8 @@
 
 - [x] 7.1 `internal/secret/backend_test.go`：`mockBackend` 測試 `resolveAllWithBackend`（成功、缺 secret、空 list）、`NewBackend` 不支援的 source（原規劃為 translate.go tests，改為 backend_test.go）
 - [x] 7.2 `internal/secret/resolve_test.go`：pattern 解析、字串替換、`ExtractRefsFromSlice`、`SubstituteSlice`
-- [ ] 7.3 為 `--file` 兩種模式加 unit test（temp file 建立與 cleanup、fixed path 寫入）
-- [ ] 7.4 更新整合測試 `scripts/integration_test.py`：加入 `--env` 注入情境
+- [x] 7.3 為 `--file` 兩種模式加 unit test（temp file 建立與 cleanup、fixed path 寫入）
+- [x] 7.4 更新整合測試 `scripts/integration_test.py`：加入 `--env` 注入情境
 
 ## 8. 文件
 
