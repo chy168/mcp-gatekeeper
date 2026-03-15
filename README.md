@@ -2,6 +2,9 @@
 
 A lightweight stdio proxy that sits between an MCP client (Claude Desktop, Cursor, etc.) and an MCP server, letting you filter which tools are visible to the LLM without modifying the server.
 
+## Quick Review: How to use in current settings.json
+![replace credential in settings](/misc/demo_in_settings.png)
+
 ## Install
 
 **Homebrew (macOS / Linux):**
