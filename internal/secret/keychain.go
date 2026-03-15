@@ -26,3 +26,10 @@ func (b *keychainBackend) Get(_ context.Context, name string) (string, error) {
 	}
 	return val, nil
 }
+
+func (b *keychainBackend) Set(_ context.Context, name, value string) error {
+	if err := keyring.Set(keychainService, name, value); err != nil {
+		return fmt.Errorf("keychain: failed to set secret %q: %w", name, err)
+	}
+	return nil
+}

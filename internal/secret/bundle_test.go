@@ -1,9 +1,36 @@
 package secret
 
 import (
+	"context"
+	"fmt"
 	"strings"
 	"testing"
 )
+
+// mockWritableBackend supports both Get and Set for testing bundle write ops.
+type mockWritableBackend struct {
+	values map[string]string
+	setErr error
+}
+
+func (m *mockWritableBackend) Get(_ context.Context, name string) (string, error) {
+	v, ok := m.values[name]
+	if !ok {
+		return "", fmt.Errorf("secret not found: %s", name)
+	}
+	return v, nil
+}
+
+func (m *mockWritableBackend) Set(_ context.Context, name, value string) error {
+	if m.setErr != nil {
+		return m.setErr
+	}
+	if m.values == nil {
+		m.values = map[string]string{}
+	}
+	m.values[name] = value
+	return nil
+}
 
 func TestParseBundle(t *testing.T) {
 	t.Run("valid simple YAML", func(t *testing.T) {
@@ -126,6 +153,126 @@ func TestLookupBundle(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "(none)") {
 			t.Errorf("empty bundle should show (none): %v", err)
+		}
+	})
+}
+
+func TestSerializeBundle(t *testing.T) {
+	t.Run("normal map produces valid YAML", func(t *testing.T) {
+		bundle := map[string]string{"api_token": "abc123", "jira_token": "xyz"}
+		out, err := SerializeBundle(bundle)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Round-trip: parse back
+		parsed, err := ParseBundle("test", out)
+		if err != nil {
+			t.Fatalf("round-trip parse failed: %v", err)
+		}
+		if parsed["api_token"] != "abc123" {
+			t.Errorf("got %q, want %q", parsed["api_token"], "abc123")
+		}
+	})
+
+	t.Run("multiline value preserved", func(t *testing.T) {
+		bundle := map[string]string{"key": "line1\nline2\n"}
+		out, err := SerializeBundle(bundle)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		parsed, err := ParseBundle("test", out)
+		if err != nil {
+			t.Fatalf("round-trip parse failed: %v", err)
+		}
+		if parsed["key"] != "line1\nline2\n" {
+			t.Errorf("multiline not preserved: got %q", parsed["key"])
+		}
+	})
+
+	t.Run("empty map produces valid YAML", func(t *testing.T) {
+		out, err := SerializeBundle(map[string]string{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		parsed, err := ParseBundle("test", out)
+		if err != nil {
+			t.Fatalf("round-trip parse failed: %v", err)
+		}
+		if len(parsed) != 0 {
+			t.Errorf("expected empty map, got %v", parsed)
+		}
+	})
+}
+
+func TestSetBundleKey(t *testing.T) {
+	t.Run("add new key", func(t *testing.T) {
+		m := &mockWritableBackend{
+			values: map[string]string{"mcp-gatekeeper": "existing: value\n"},
+		}
+		if err := SetBundleKey(context.Background(), m, "mcp-gatekeeper", "new_key", "new_val"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		parsed, _ := ParseBundle("mcp-gatekeeper", m.values["mcp-gatekeeper"])
+		if parsed["new_key"] != "new_val" {
+			t.Errorf("new key not set: %v", parsed)
+		}
+		if parsed["existing"] != "value" {
+			t.Errorf("existing key lost: %v", parsed)
+		}
+	})
+
+	t.Run("update existing key", func(t *testing.T) {
+		m := &mockWritableBackend{
+			values: map[string]string{"mcp-gatekeeper": "api_token: old\n"},
+		}
+		if err := SetBundleKey(context.Background(), m, "mcp-gatekeeper", "api_token", "new"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		parsed, _ := ParseBundle("mcp-gatekeeper", m.values["mcp-gatekeeper"])
+		if parsed["api_token"] != "new" {
+			t.Errorf("key not updated: got %q", parsed["api_token"])
+		}
+	})
+
+	t.Run("bundle not found starts from empty map", func(t *testing.T) {
+		m := &mockWritableBackend{values: map[string]string{}}
+		if err := SetBundleKey(context.Background(), m, "mcp-gatekeeper", "first_key", "val"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		parsed, _ := ParseBundle("mcp-gatekeeper", m.values["mcp-gatekeeper"])
+		if parsed["first_key"] != "val" {
+			t.Errorf("key not set in new bundle: %v", parsed)
+		}
+	})
+}
+
+func TestDeleteBundleKey(t *testing.T) {
+	t.Run("delete existing key", func(t *testing.T) {
+		m := &mockWritableBackend{
+			values: map[string]string{"mcp-gatekeeper": "api_token: abc\njira_token: xyz\n"},
+		}
+		if err := DeleteBundleKey(context.Background(), m, "mcp-gatekeeper", "api_token"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		parsed, _ := ParseBundle("mcp-gatekeeper", m.values["mcp-gatekeeper"])
+		if _, ok := parsed["api_token"]; ok {
+			t.Error("key should have been deleted")
+		}
+		if parsed["jira_token"] != "xyz" {
+			t.Error("other key should be preserved")
+		}
+	})
+
+	t.Run("key not found returns error", func(t *testing.T) {
+		m := &mockWritableBackend{
+			values: map[string]string{"mcp-gatekeeper": "other_key: val\n"},
+		}
+		err := DeleteBundleKey(context.Background(), m, "mcp-gatekeeper", "missing")
+		if err == nil {
+			t.Fatal("expected error for missing key")
+		}
+		if !strings.Contains(err.Error(), "missing") {
+			t.Errorf("error should mention key name: %v", err)
 		}
 	})
 }

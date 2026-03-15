@@ -134,11 +134,42 @@ GOOGLE_CLOUD_PROJECT=my-gcp-project \
 
 > **Note**: Always quote `{$secret.*}` placeholders with single quotes in the shell to prevent `$secret` from being expanded before mcp-gatekeeper sees it.
 
+### Managing secrets with mcp-gatekeeper-secret
+
+`mcp-gatekeeper-secret` is a companion CLI for managing the YAML bundle directly, without needing to use backend-native tools.
+
+```sh
+# List all keys in the bundle
+mcp-gatekeeper-secret --secret-source=keychain list
+
+# Get a key (masked by default)
+mcp-gatekeeper-secret --secret-source=keychain get api_token
+# api_token: ****
+
+# Get a key (reveal value)
+mcp-gatekeeper-secret --secret-source=keychain get api_token --reveal
+# api_token: abc123
+
+# Set a key (single-line value)
+mcp-gatekeeper-secret --secret-source=keychain set api_token abc123
+
+# Set a key from file (multiline — e.g. service account JSON)
+mcp-gatekeeper-secret --secret-source=gcp set gcp_sa_key --from-file=./sa.json
+
+# Delete a key
+mcp-gatekeeper-secret --secret-source=keychain delete old_token
+
+# Use a custom bundle name
+mcp-gatekeeper-secret --secret-source=gcp --secret-source-name=my-bundle list
+```
+
 ### Backend setup
 
 **`--secret-source=gcp`** (GCP Secret Manager)
 - Requires `GOOGLE_CLOUD_PROJECT` env var
 - Authentication via Application Default Credentials (ADC): run `gcloud auth application-default login`
+- Read: requires `roles/secretmanager.secretAccessor`
+- Write (`mcp-gatekeeper-secret set`): requires `roles/secretmanager.secretVersionAdder` (and `roles/secretmanager.secretCreator` for new secrets)
 
 **`--secret-source=aws`** (AWS Secrets Manager)
 - Requires `AWS_DEFAULT_REGION` or `AWS_REGION` env var

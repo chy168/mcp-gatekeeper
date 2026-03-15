@@ -5,9 +5,10 @@ import (
 	"fmt"
 )
 
-// Backend fetches a secret value by name.
+// Backend fetches and stores secret values by name.
 type Backend interface {
 	Get(ctx context.Context, name string) (string, error)
+	Set(ctx context.Context, name, value string) error
 }
 
 // NewBackend returns a Backend for the given source name.

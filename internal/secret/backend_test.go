@@ -18,6 +18,11 @@ func (m *mockBackend) Get(_ context.Context, name string) (string, error) {
 	return v, nil
 }
 
+func (m *mockBackend) Set(_ context.Context, name, value string) error {
+	m.values[name] = value
+	return nil
+}
+
 func TestResolveAllBundle(t *testing.T) {
 	bundleYAML := "db_password: supersecret\napi_key: key123\n"
 	mock := &mockBackend{
