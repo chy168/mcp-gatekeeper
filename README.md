@@ -164,21 +164,35 @@ mcp-gatekeeper-secret --secret-source=gcp --secret-source-name=my-bundle list
 ```
 
 ### Backend setup
-
-**`--secret-source=gcp`** (GCP Secret Manager)
+#### GCP Secret Manager
+**`--secret-source=gcp`**
 - Requires `GOOGLE_CLOUD_PROJECT` env var
 - Authentication via Application Default Credentials (ADC): run `gcloud auth application-default login`
 - Read: requires `roles/secretmanager.secretAccessor`
 - Write (`mcp-gatekeeper-secret set`): requires `roles/secretmanager.secretVersionAdder` (and `roles/secretmanager.secretCreator` for new secrets)
 
-**`--secret-source=aws`** (AWS Secrets Manager)
+#### AWS Secrets Manager
+**`--secret-source=aws`**
 - Requires `AWS_DEFAULT_REGION` or `AWS_REGION` env var
 - Authentication via standard AWS credential chain (`~/.aws/credentials`, IAM role, env vars, etc.)
 
-**`--secret-source=keychain`** (OS Keychain)
+#### macOS Keychain
+**`--secret-source=keychain`**
 - macOS: Keychain, Linux: Secret Service (requires D-Bus — desktop only), Windows: Credential Manager
+
 - Service name is fixed to `mcp-gatekeeper`; account name is the bundle name (`--secret-source-name`, default: `mcp-gatekeeper`)
 - Store the YAML bundle on macOS: `security add-generic-password -s mcp-gatekeeper -a mcp-gatekeeper -w "$(printf 'api_token: abc123\njira_token: xyz789\n')"`
+- Add a secret on macOS: (classic)
+  ```
+  # secret value
+  security add-generic-password -s mcp-gatekeeper -a my_token -w "secret-value"
+
+  # credential file
+  security add-generic-password \
+    -s mcp-gatekeeper \
+    -a my_creds_file \
+    -w "$(cat /path/to/credentials.json)"
+  ```
 
 ### Security note
 
