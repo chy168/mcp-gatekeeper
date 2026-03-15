@@ -2,6 +2,7 @@ package secret
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/zalando/go-keyring"
@@ -22,6 +23,9 @@ func newKeychainBackend() (*keychainBackend, error) {
 func (b *keychainBackend) Get(_ context.Context, name string) (string, error) {
 	val, err := keyring.Get(keychainService, name)
 	if err != nil {
+		if errors.Is(err, keyring.ErrNotFound) {
+			return "", fmt.Errorf("keychain: bundle %q not found in keychain: %w", name, ErrBundleNotFound)
+		}
 		return "", fmt.Errorf("keychain: failed to get secret %q: %w", name, err)
 	}
 	return val, nil

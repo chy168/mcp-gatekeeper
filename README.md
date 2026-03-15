@@ -63,6 +63,7 @@ mcp-gatekeeper flags must appear **before** the server command. Any flags after 
 | `--env=KEY={$secret.name}` | Inject a secret as an env var into the subprocess. Can be specified multiple times. |
 | `--file=VAR={$secret.name}` | Write secret to a temp file (deleted on exit), inject its path as env var `VAR`. |
 | `--file=/path/to/file={$secret.name}` | Write secret to a fixed path. No env var injected. |
+| `--file=VAR={$secret.name:w}` | Same as above, but write modified file content back to the bundle when subprocess exits. |
 
 When both `--allow` and `--exclude` are specified, `--allow` is applied first, then `--exclude`.
 
@@ -109,6 +110,12 @@ mcp-gatekeeper --secret-source=gcp \
 mcp-gatekeeper --secret-source=keychain \
   --file=/tmp/creds.json={$secret.my_creds} \
   uvx mcp-server-foo
+
+# Write credential file and sync changes back to the bundle on exit (:w modifier)
+# Use this when the subprocess refreshes the credential (e.g. OAuth token rotation)
+mcp-gatekeeper --secret-source=gcp \
+  --file=GOOGLE_APPLICATION_CREDENTIALS='{$secret.oauth_creds:w}' \
+  uvx mcp-server-gcp
 
 # Use a custom bundle name
 mcp-gatekeeper --secret-source=gcp --secret-source-name=my-bundle \
@@ -193,6 +200,21 @@ mcp-gatekeeper-secret --secret-source=gcp --secret-source-name=my-bundle list
     -a my_creds_file \
     -w "$(cat /path/to/credentials.json)"
   ```
+
+### File write-back (`:w` modifier)
+
+By default, `--file` injections are read-only — the subprocess can read the file but any modifications are ignored. Add the `:w` modifier to enable write-back: when the subprocess exits, mcp-gatekeeper compares the file content against what was originally written. If it changed, the new content is written back to the corresponding key in the bundle via `SetBundleKey`.
+
+```sh
+# oauth_creds will be refreshed by the subprocess and synced back to GCP on exit
+mcp-gatekeeper --secret-source=gcp \
+  --file=GOOGLE_APPLICATION_CREDENTIALS='{$secret.oauth_creds:w}' \
+  uvx mcp-server-gcp
+```
+
+Write-back applies to both temp files and fixed-path files, and works with all backends. If the file is unchanged (identical hash), no write is performed.
+
+> **Note**: Write-back requires exactly one `{$secret.key:w}` reference per `--file` entry. Entries with no reference, or with multiple references, are not eligible for write-back.
 
 ### Security note
 

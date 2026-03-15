@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -29,6 +32,48 @@ func main() {
 	rootCmd.PersistentFlags().StringVar(&secretSource, "secret-source", "", "Secret backend: gcp, aws, or keychain")
 	rootCmd.PersistentFlags().StringVar(&secretSourceName, "secret-source-name", "mcp-gatekeeper", "Bundle name in the backend")
 
+	// promptCreate asks the user if they want to create a new empty bundle.
+	promptCreate := func(bundleName, src string) bool {
+		fmt.Fprintf(os.Stderr, "Bundle %q not found in %s backend. Create it? [y/N] ", bundleName, src)
+		reader := bufio.NewReader(os.Stdin)
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return false
+		}
+		answer := strings.TrimSpace(strings.ToLower(line))
+		return answer == "y" || answer == "yes"
+	}
+
+	// createEmptyBundle writes a valid empty YAML bundle to the backend.
+	// GCP (and other backends) reject empty payloads, so we serialize {} rather
+	// than passing an empty string.
+	createEmptyBundle := func(ctx context.Context, backend secret.Backend) error {
+		empty, err := secret.SerializeBundle(map[string]string{})
+		if err != nil {
+			return err
+		}
+		return backend.Set(ctx, secretSourceName, empty)
+	}
+
+	// getBundle fetches and parses the bundle, prompting to create if not found.
+	getBundle := func(ctx context.Context, backend secret.Backend) (map[string]string, error) {
+		content, err := backend.Get(ctx, secretSourceName)
+		if err != nil {
+			if errors.Is(err, secret.ErrBundleNotFound) {
+				if !promptCreate(secretSourceName, secretSource) {
+					return nil, fmt.Errorf("bundle %q not found", secretSourceName)
+				}
+				if setErr := createEmptyBundle(ctx, backend); setErr != nil {
+					return nil, fmt.Errorf("failed to create bundle: %w", setErr)
+				}
+				fmt.Fprintf(os.Stderr, "✓ Created empty bundle %q\n", secretSourceName)
+				return map[string]string{}, nil
+			}
+			return nil, err
+		}
+		return secret.ParseBundle(secretSourceName, content)
+	}
+
 	// ── list ──────────────────────────────────────────────────────────────────
 	listCmd := &cobra.Command{
 		Use:   "list",
@@ -39,11 +84,7 @@ func main() {
 				return err
 			}
 			ctx := context.Background()
-			content, err := backend.Get(ctx, secretSourceName)
-			if err != nil {
-				return err
-			}
-			bundle, err := secret.ParseBundle(secretSourceName, content)
+			bundle, err := getBundle(ctx, backend)
 			if err != nil {
 				return err
 			}
@@ -72,11 +113,7 @@ func main() {
 				return err
 			}
 			ctx := context.Background()
-			content, err := backend.Get(ctx, secretSourceName)
-			if err != nil {
-				return err
-			}
-			bundle, err := secret.ParseBundle(secretSourceName, content)
+			bundle, err := getBundle(ctx, backend)
 			if err != nil {
 				return err
 			}
@@ -143,6 +180,16 @@ func main() {
 			}
 			ctx := context.Background()
 			if err := secret.DeleteBundleKey(ctx, backend, secretSourceName, key); err != nil {
+				if errors.Is(err, secret.ErrBundleNotFound) {
+					if !promptCreate(secretSourceName, secretSource) {
+						return fmt.Errorf("bundle %q not found", secretSourceName)
+					}
+					if setErr := createEmptyBundle(ctx, backend); setErr != nil {
+						return fmt.Errorf("failed to create bundle: %w", setErr)
+					}
+					fmt.Fprintf(os.Stderr, "✓ Created empty bundle %q\n", secretSourceName)
+					return fmt.Errorf("key %q not found in the newly created bundle", key)
+				}
 				return err
 			}
 			fmt.Printf("✓ Deleted %q from bundle %q\n", key, secretSourceName)

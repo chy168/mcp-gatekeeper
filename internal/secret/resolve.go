@@ -6,9 +6,17 @@ import (
 	"strings"
 )
 
-var secretPattern = regexp.MustCompile(`\{\$secret\.([a-zA-Z0-9_\-]+)\}`)
+// secretPattern matches {$secret.name} and {$secret.name:modifiers}
+var secretPattern = regexp.MustCompile(`\{\$secret\.([a-zA-Z0-9_\-]+)(?::([a-z]+))?\}`)
 
-// ExtractRefs returns all unique secret names referenced in s.
+// SecretRef holds a parsed {$secret.name} or {$secret.name:modifiers} reference.
+type SecretRef struct {
+	Name      string
+	Writeback bool // true when the :w modifier is present
+}
+
+// ExtractRefs returns all unique secret key names referenced in s.
+// Modifiers (e.g. :w) are stripped — use ExtractRefsWithModifiers to retain them.
 func ExtractRefs(s string) []string {
 	matches := secretPattern.FindAllStringSubmatch(s, -1)
 	seen := map[string]bool{}
@@ -18,6 +26,24 @@ func ExtractRefs(s string) []string {
 		if !seen[name] {
 			seen[name] = true
 			result = append(result, name)
+		}
+	}
+	return result
+}
+
+// ExtractRefsWithModifiers returns all unique secret refs with their modifiers.
+func ExtractRefsWithModifiers(s string) []SecretRef {
+	matches := secretPattern.FindAllStringSubmatch(s, -1)
+	seen := map[string]bool{}
+	var result []SecretRef
+	for _, m := range matches {
+		name := m[1]
+		if !seen[name] {
+			seen[name] = true
+			result = append(result, SecretRef{
+				Name:      name,
+				Writeback: len(m) > 2 && strings.Contains(m[2], "w"),
+			})
 		}
 	}
 	return result
@@ -51,6 +77,12 @@ func resolveAllWithBackend(backend Backend, bundleName string, names []string) (
 	return out, nil
 }
 
+// ResolveAllWithBackend is like ResolveAll but accepts a pre-created Backend.
+// Use this when you need to reuse the backend (e.g. for write-back after subprocess exit).
+func ResolveAllWithBackend(backend Backend, bundleName string, names []string) (map[string]string, error) {
+	return resolveAllWithBackend(backend, bundleName, names)
+}
+
 // ResolveAll fetches the YAML bundle named bundleName from the given source
 // backend, parses it, and returns a map of the requested keys → values.
 // Fails fast on any error (backend fetch, YAML parse, missing key).
@@ -62,7 +94,8 @@ func ResolveAll(source, bundleName string, names []string) (map[string]string, e
 	return resolveAllWithBackend(backend, bundleName, names)
 }
 
-// Substitute replaces all {$secret.name} occurrences in s using the resolved map.
+// Substitute replaces all {$secret.name} and {$secret.name:modifiers} occurrences
+// in s using the resolved map. Modifiers are consumed and not emitted in the output.
 func Substitute(s string, resolved map[string]string) string {
 	return secretPattern.ReplaceAllStringFunc(s, func(match string) string {
 		sub := secretPattern.FindStringSubmatch(match)

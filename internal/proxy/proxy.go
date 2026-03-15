@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"bufio"
+	"context"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
@@ -21,6 +23,8 @@ func Run(command string, args, allows, excludes, envInjections, fileInjections [
 	allStrings := append(append(append([]string{}, args...), envInjections...), fileInjections...)
 	allRefs := secret.ExtractRefsFromSlice(allStrings)
 
+	// Create backend once so it can be reused for write-back after subprocess exits.
+	var backend secret.Backend
 	var resolved map[string]string
 	if len(allRefs) > 0 {
 		if secretSource == "" {
@@ -28,7 +32,12 @@ func Run(command string, args, allows, excludes, envInjections, fileInjections [
 			return 1
 		}
 		var err error
-		resolved, err = secret.ResolveAll(secretSource, secretSourceName, allRefs)
+		backend, err = secret.NewBackend(secretSource)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to create secret backend: %v\n", err)
+			return 1
+		}
+		resolved, err = secret.ResolveAllWithBackend(backend, secretSourceName, allRefs)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to resolve secrets: %v\n", err)
 			return 1
@@ -70,7 +79,7 @@ func Run(command string, args, allows, excludes, envInjections, fileInjections [
 	}
 
 	// Handle fileInjections
-	fileEnvs, fileTmps, err := applyFileInjections(fileInjections, resolved)
+	fileEnvs, fileTmps, writebacks, err := applyFileInjections(fileInjections, resolved)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "mcp-gatekeeper: %v\n", err)
 		return 1
@@ -129,12 +138,28 @@ func Run(command string, args, allows, excludes, envInjections, fileInjections [
 	}()
 
 	<-done
+	cmd.Wait()
 
-	if err := cmd.Wait(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return exitErr.ExitCode()
+	// Write-back: for files marked with :w, sync modified content back to the bundle.
+	// Must happen before deferred temp file cleanup so files are still readable.
+	if backend != nil && len(writebacks) > 0 {
+		ctx := context.Background()
+		for _, wb := range writebacks {
+			current, err := os.ReadFile(wb.Path)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "mcp-gatekeeper: write-back: failed to read %q: %v\n", wb.Path, err)
+				continue
+			}
+			if sha256.Sum256(current) == wb.OrigHash {
+				continue // unchanged, skip
+			}
+			if err := secret.SetBundleKey(ctx, backend, secretSourceName, wb.SecretKey, string(current)); err != nil {
+				fmt.Fprintf(os.Stderr, "mcp-gatekeeper: write-back: failed to update %q: %v\n", wb.SecretKey, err)
+			} else {
+				fmt.Fprintf(os.Stderr, "mcp-gatekeeper: write-back: updated %q in bundle %q\n", wb.SecretKey, secretSourceName)
+			}
 		}
-		return 1
 	}
+
 	return 0
 }

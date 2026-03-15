@@ -75,6 +75,10 @@ func (b *awsBackend) Get(ctx context.Context, name string) (string, error) {
 		SecretId: &name,
 	})
 	if err != nil {
+		var notFound *types.ResourceNotFoundException
+		if errors.As(err, &notFound) {
+			return "", fmt.Errorf("aws: bundle %q not found in AWS Secrets Manager: %w", name, ErrBundleNotFound)
+		}
 		return "", fmt.Errorf("aws: failed to get secret %q: %w", name, err)
 	}
 	if result.SecretString != nil {

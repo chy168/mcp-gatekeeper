@@ -63,7 +63,7 @@ func ListTools(command string, args, allows, excludes, envInjections, fileInject
 	}
 
 	// Handle fileInjections (no temp file cleanup needed for list mode)
-	fileEnvs, _, err := applyFileInjections(fileInjections, resolved)
+	fileEnvs, _, _, err := applyFileInjections(fileInjections, resolved)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "mcp-gatekeeper: %v\n", err)
 		return 1

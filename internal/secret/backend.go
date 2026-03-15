@@ -2,8 +2,14 @@ package secret
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
+
+// ErrBundleNotFound is returned by Backend.Get when the named bundle does not
+// exist in the backend. Callers can use errors.Is to detect this case and
+// offer to create the bundle.
+var ErrBundleNotFound = errors.New("bundle not found")
 
 // Backend fetches and stores secret values by name.
 type Backend interface {

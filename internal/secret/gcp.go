@@ -95,6 +95,9 @@ func (b *gcpBackend) Get(ctx context.Context, name string) (string, error) {
 	}
 	result, err := client.AccessSecretVersion(ctx, req)
 	if err != nil {
+		if st, ok := status.FromError(err); ok && st.Code() == codes.NotFound {
+			return "", fmt.Errorf("gcp: bundle %q not found in GCP Secret Manager: %w", name, ErrBundleNotFound)
+		}
 		return "", fmt.Errorf("gcp: failed to access secret %q: %w", name, err)
 	}
 	return string(result.Payload.Data), nil
