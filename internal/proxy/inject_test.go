@@ -1,9 +1,12 @@
 package proxy
 
 import (
+	"crypto/sha256"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/chy168/mcp-gatekeeper/internal/secret"
 )
 
 func TestApplyFileInjections_TempFile(t *testing.T) {
@@ -167,5 +170,95 @@ func TestApplyFileInjections_NoWritebackWithoutModifier(t *testing.T) {
 
 	if len(writebacks) != 0 {
 		t.Errorf("expected no writebacks without :w modifier, got %d", len(writebacks))
+	}
+}
+
+func TestApplyFileInjections_WritebackOrigHash(t *testing.T) {
+	// origHash must match sha256 of the resolved secret value written to the file
+	content := "initial-credential-content"
+	resolved := map[string]string{"creds": content}
+	_, tmpFiles, writebacks, err := applyFileInjections([]string{"CRED={$secret.creds:w}"}, resolved)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer func() {
+		for _, f := range tmpFiles {
+			os.Remove(f)
+		}
+	}()
+
+	want := sha256.Sum256([]byte(content))
+	if writebacks[0].OrigHash != want {
+		t.Errorf("origHash mismatch: got %x, want %x", writebacks[0].OrigHash, want)
+	}
+}
+
+func TestApplyFileInjections_WritebackFixedPath(t *testing.T) {
+	// :w on a fixed path should also produce a writeback entry
+	tmpDir := t.TempDir()
+	fixedPath := tmpDir + "/creds.json"
+	content := `{"token":"abc"}`
+	resolved := map[string]string{"creds": content}
+
+	envs, tmpFiles, writebacks, err := applyFileInjections([]string{fixedPath + "={$secret.creds:w}"}, resolved)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(envs) != 0 {
+		t.Errorf("fixed path should produce no env additions")
+	}
+	if len(tmpFiles) != 0 {
+		t.Errorf("fixed path should produce no temp files")
+	}
+	if len(writebacks) != 1 {
+		t.Fatalf("expected 1 writeback, got %d", len(writebacks))
+	}
+	if writebacks[0].Path != fixedPath {
+		t.Errorf("writeback path = %q, want %q", writebacks[0].Path, fixedPath)
+	}
+	if writebacks[0].SecretKey != "creds" {
+		t.Errorf("writeback key = %q, want %q", writebacks[0].SecretKey, "creds")
+	}
+}
+
+// TestEnvSubstitution verifies that secret refs in --env values are resolved correctly.
+// The env substitution loop in proxy.go is: secret.Substitute(inj, resolved).
+// These tests exercise the substitution rules directly to document expected behaviour.
+func TestEnvSubstitution_Basic(t *testing.T) {
+	resolved := map[string]string{"api_token": "tok-abc123"}
+	out := secret.Substitute("API_TOKEN={$secret.api_token}", resolved)
+	if out != "API_TOKEN=tok-abc123" {
+		t.Errorf("got %q, want %q", out, "API_TOKEN=tok-abc123")
+	}
+}
+
+func TestEnvSubstitution_WritebackModifierConsumed(t *testing.T) {
+	// :w in an --env value is unusual but the modifier must still be stripped
+	resolved := map[string]string{"tok": "value"}
+	out := secret.Substitute("MY_VAR={$secret.tok:w}", resolved)
+	if out != "MY_VAR=value" {
+		t.Errorf("got %q, want %q", out, "MY_VAR=value")
+	}
+}
+
+func TestEnvSubstitution_AsFileRefLeftUntouched(t *testing.T) {
+	// .as_file in an --env value should not be substituted (wrong usage,
+	// but Substitute must not mangle it — leave it as-is)
+	resolved := map[string]string{"creds": "secret-content"}
+	out := secret.Substitute("MY_VAR={$secret.creds.as_file}", resolved)
+	if out != "MY_VAR={$secret.creds.as_file}" {
+		t.Errorf("got %q, expected ref left unchanged", out)
+	}
+}
+
+func TestEnvSubstitution_MultilineValue(t *testing.T) {
+	// Secret values may contain newlines (e.g. service-account JSON)
+	jsonContent := "{\n  \"key\": \"value\"\n}"
+	resolved := map[string]string{"sa_key": jsonContent}
+	out := secret.Substitute("SA_KEY={$secret.sa_key}", resolved)
+	want := "SA_KEY=" + jsonContent
+	if out != want {
+		t.Errorf("got %q, want %q", out, want)
 	}
 }

@@ -47,10 +47,55 @@ func ListTools(command string, args, allows, excludes, envInjections, fileInject
 		}
 	}
 
-	// Substitute refs in args
+	// Substitute value refs in args (skips .as_file refs)
 	if resolved != nil {
 		args = secret.SubstituteSlice(args, resolved)
 	}
+
+	// Handle .as_file refs in args: write each secret to a temp file and substitute path
+	var asFileTmps []string
+	if resolved != nil {
+		asFilePathMap := map[string]string{}
+		for _, arg := range args {
+			for _, ref := range secret.ExtractRefsWithModifiers(arg) {
+				if ref.AsFile {
+					if _, already := asFilePathMap[ref.Name]; !already {
+						val, ok := resolved[ref.Name]
+						if !ok {
+							fmt.Fprintf(os.Stderr, "mcp-gatekeeper: secret %q not resolved for .as_file\n", ref.Name)
+							return 1
+						}
+						f, err := os.CreateTemp("", "mcp-secret-*")
+						if err != nil {
+							fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to create temp file for %q: %v\n", ref.Name, err)
+							return 1
+						}
+						if err := f.Chmod(0600); err != nil {
+							f.Close()
+							fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to chmod temp file: %v\n", err)
+							return 1
+						}
+						if _, err := f.WriteString(val); err != nil {
+							f.Close()
+							fmt.Fprintf(os.Stderr, "mcp-gatekeeper: failed to write temp file: %v\n", err)
+							return 1
+						}
+						f.Close()
+						asFileTmps = append(asFileTmps, f.Name())
+						asFilePathMap[ref.Name] = f.Name()
+					}
+				}
+			}
+		}
+		if len(asFilePathMap) > 0 {
+			args = secret.SubstituteAsFileSlice(args, asFilePathMap)
+		}
+	}
+	defer func() {
+		for _, f := range asFileTmps {
+			os.Remove(f)
+		}
+	}()
 
 	// Build extra env vars from envInjections
 	var resolvedEnvs []string

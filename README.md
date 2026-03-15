@@ -64,6 +64,7 @@ mcp-gatekeeper flags must appear **before** the server command. Any flags after 
 | `--file=VAR={$secret.name}` | Write secret to a temp file (deleted on exit), inject its path as env var `VAR`. |
 | `--file=/path/to/file={$secret.name}` | Write secret to a fixed path. No env var injected. |
 | `--file=VAR={$secret.name:w}` | Same as above, but write modified file content back to the bundle when subprocess exits. |
+| `<command-arg>={$secret.name.as_file}` | In subprocess args: writes secret to a temp file, substitutes the placeholder with the temp file path. |
 
 When both `--allow` and `--exclude` are specified, `--allow` is applied first, then `--exclude`.
 
@@ -116,6 +117,11 @@ mcp-gatekeeper --secret-source=keychain \
 mcp-gatekeeper --secret-source=gcp \
   --file=GOOGLE_APPLICATION_CREDENTIALS='{$secret.oauth_creds:w}' \
   uvx mcp-server-gcp
+
+# Pass secret as a temp file path directly in subprocess args (.as_file)
+# Useful when the server accepts a --credentials-file flag instead of an env var
+mcp-gatekeeper --secret-source=gcp \
+  uvx mcp-server-foo --credentials='{$secret.gcp_sa_key.as_file}'
 
 # Use a custom bundle name
 mcp-gatekeeper --secret-source=gcp --secret-source-name=my-bundle \
@@ -216,9 +222,22 @@ Write-back applies to both temp files and fixed-path files, and works with all b
 
 > **Note**: Write-back requires exactly one `{$secret.key:w}` reference per `--file` entry. Entries with no reference, or with multiple references, are not eligible for write-back.
 
+### Passing a secret as a file path in args (`.as_file`)
+
+When a subprocess expects a file path rather than a value (e.g. `--credentials-file=/path/to/sa.json`), use the `.as_file` subfield directly in the subprocess args:
+
+```sh
+mcp-gatekeeper --secret-source=gcp \
+  uvx mcp-server-foo --credentials='{$secret.gcp_sa_key.as_file}'
+```
+
+mcp-gatekeeper writes the secret to a temp file (deleted on exit), then substitutes the placeholder with the temp file path before launching the subprocess. This avoids needing a `sh -c` wrapper. The temp file is created with `0600` permissions.
+
+> **Note**: `.as_file` in args is always read-only. To sync changes back, use `--file=VAR={$secret.key:w}` with an env var instead.
+
 ### Security note
 
-> **Note**: Using `{$secret.name}` inside subprocess args (e.g. `--token={$secret.x}`) will expose the secret value in process listings (`ps`). Prefer `--env` or `--file` for sensitive values.
+> **Note**: Using `{$secret.name}` inside subprocess args (e.g. `--token={$secret.x}`) will expose the secret value in process listings (`ps`). Prefer `--env`, `--file`, or `{$secret.name.as_file}` for sensitive values.
 
 ## MCP Client Config Example
 
